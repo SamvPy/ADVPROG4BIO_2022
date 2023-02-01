@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Exam project</title>
+    <link rel="icon" type="image/x-icon" href="./ac.ico">
+<style>
+	
+/* Style the tab */
+.tab {
+  overflow: hidden;
+  border: 1px solid #ccc;
+  background-color: #f1f1f1;
+}
+
+.tab button{
+	background-color: inherit;
+	float: left;
+	border: none;
+	outline: none;
+	cursor: pointer;
+	padding: 14px 16px;
+	transition: 0.3s;
+	font-size: 17px;
+}
+
+.tab button:hover {
+	background-color: #ddd;
+}
+
+.tab button.active {
+	background-color: #ccc;
+}
+
+.tabcontent {
+	display: none;
+	padding: 6px 12px;
+	border: 1px solid #ccc;
+	border-top: none
+}
+
+/* Style the slider */
+.slider {
+	width: 100%;
+}
+
+.panel-footer {
+    height: 50px !important;
+}
+
+/* Style the buttons */
+.btn {
+    background-color: #4CAF50; /* Green */
+    border: none;
+    padding: 16px 32px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+    transition-duration: 0.4s;
+    cursor: pointer;
+}
+
+.ledon {
+    background-color: white; 
+    color: black; 
+    border: 2px solid #4CAF50;
+}
+
+.ledon:hover {
+    background-color: #4CAF50;
+    color: white;
+}
+
+.ledoff {
+    background-color: white; 
+    color: black; 
+    border: 2px solid #a40a0a;
+
+}
+
+.ledoff:hover {
+    background-color: #a40a0a;
+    color: white;
+}
+
+/* Style the forms */
+label, input {
+    display: block;
+}
+
+label {
+    margin-bottom: 20px;
+}
+
+</style>
+
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags -->
+    <title>Exam project: Bar charts</title>
+     <!-- jQuery (necessary for Bootstrap's JavaScript plugins) -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+    <link href="http://ajax.googleapis.com/ajax/libs/jqueryui/1.11.4/themes/smoothness/jquery-ui.css" rel="stylesheet" type="text/css"/>
+    <script src="http://ajax.googleapis.com/ajax/libs/jqueryui/1.11.4/jquery-ui.min.js"></script>
+
+
+    <!-- Bootstrap -->
+    <!-- Latest compiled and minified CSS -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" integrity="sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7" crossorigin="anonymous">
+    <!-- Optional theme -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap-theme.min.css" integrity="sha384-fLW2N01lMqjakBkx3l/M9EahuwpSfeNvV63J5ezn3uZzapT0u7EYsXMjQV+0En5r" crossorigin="anonymous">
+    <!-- Latest compiled and minified JavaScript -->
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js" integrity="sha384-0mSbJDEHialfmuBBQP6A4Qrprq5OVfW37PRR3j5ELqxss1yVqOtnepnHVP9aJ7xS" crossorigin="anonymous"></script>
+
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="http://code.highcharts.com/highcharts.js"></script>
+
+<script>
+
+function initSocketIO()
+{
+    socket = io.connect('http://localhost:8000');
+    
+    socket.on("updateData", function(data) {
+		document.getElementById("temp").textContent = data.y["temp"];
+		document.getElementById("humid").textContent = data.y["humid"];
+		document.getElementById("light").textContent = data.y["light"];
+    })
+    
+    // Initialize everything
+    socket.on('onconnection', function(value) {
+        chartfunc();
+        initSlider();
+      });
+
+    // React to light button press  
+    socket.on("setSlider", function(value) {
+        $ ( "#slider" ).slider( "value", value );
+    })
+}
+
+function initSlider()
+{
+    $( "#slider" ).slider({
+    min:0,
+    max:255,
+    orientation:"vertical",
+    change: function(event, ui) {
+        socket.emit('sliderval',ui.value);
+        var value = $("#slider").slider("option","value");
+        $("#slider").find(".ui-slider-handle").text(ui.value);
+    },
+    slide: function(event, ui) {
+        $("#slider").find(".ui-slider-handle").text(ui.value);   
+    }
+   });
+}
+        
+window.onload = function() {
+        initSocketIO();
+        };
+
+
+chartfunc = function() {
+  Highcharts.setOptions({
+        global: {
+            useUTC: false
+        }
+    });
+ 
+    const lightGraph = new Highcharts.Chart({
+        title: { text: 'Light intensity' },
+        xAxis: {
+            type: 'datetime',
+            tickPixelInterval: 100
+        },
+        yAxis: {
+            title: { text: 'Intensity' },
+            tickInterval: 10,
+            min: 0,
+            max: 100
+        },
+        tooltip: {
+            formatter: function() {
+                return '<b>'+ this.series.name + '</b><br/>'
+                    + '[ ' + Highcharts.dateFormat('%Y-%m-%d %H:%M:%S', this.x)
+                    + ' , '
+                    + this.y + ' ]';
+            }
+        },
+        chart: {
+            type: 'line',
+            renderTo: 'light_graph_container',
+            events: {
+                load: function() {
+                    var series = this.series[0];
+                    socket.on('updateData', function (sample) {
+                        // when a sample arrives we plot it
+                        series.addPoint([parseInt(sample.x), parseInt(sample.y.light)], true, true);
+                    });
+                }
+            }
+        },
+        series: [{
+            name: 'LDR sensor data',
+            data: (function() {
+                // generate some points to render before real samples arrive from feed
+                var data = [],
+                    time = (new Date()).getTime(),
+                    i;
+                // 100 samples, starting 99 ms ago up to present time when feed starts plotting
+                for (i = -99; i <= 0; i++) {
+                    data.push({
+                        x: time + (i * 1000),
+                        y: 0
+                    });
+                }
+                return data;
+            })()
+        }]
+    });
+
+    const tempGraph = new Highcharts.Chart({
+        title: { text: 'Temperature' },
+        xAxis: {
+            type: 'datetime',
+            tickPixelInterval: 100
+        },
+        yAxis: {
+            title: { text: '°C' },
+            tickInterval: 5,
+            min: -10,
+            max: 60
+        },
+        tooltip: {
+            formatter: function() {
+                return '<b>'+ this.series.name + '</b><br/>'
+                    + '[ ' + Highcharts.dateFormat('%Y-%m-%d %H:%M:%S', this.x)
+                    + ' , '
+                    + this.y + ' ]';
+            }
+        },
+        chart: {
+            type: 'line',
+            renderTo: 'temp_graph_container',
+            events: {
+                load: function() {
+                    var series = this.series[0];
+                    socket.on('updateData', function (sample) {
+                        // when a sample arrives we plot it
+                        series.addPoint([parseInt(sample.x), parseInt(sample.y.temp)], true, true);
+                    });
+
+                    // Add plot bands
+                    var yAxis = this.yAxis[0];
+                    var upperPlotBandTemp = false;
+                    var lowerPlotBandTemp = false;
+                    socket.on("upperPlotBandTemp", function(sample) {
+                        if (upperPlotBandTemp) {
+                            yAxis.removePlotBand('temp-band-upper');
+                        } 
+                        yAxis.addPlotBand({
+                            id: 'temp-band-upper', 
+                            from: sample,
+                            to: 60,
+                            color: '#FA8072'
+                            })
+                                
+                        upperPlotBandTemp = true;
+                    })
+                    socket.on("lowerPlotBandTemp", function(sample) {
+                        if (lowerPlotBandTemp) {
+                            yAxis.removePlotBand('temp-band-lower');
+                        }
+                        yAxis.addPlotBand({
+                            id: 'temp-band-lower', 
+                            from: sample,
+                            to: -10,
+                            color: '#FA8072'
+                            })
+                        lowerPlotBandTemp = true;
+                    })
+                    socket.on("resetCriticalTemp", function(_) {
+                        if (lowerPlotBandTemp) {
+                            yAxis.removePlotBand('temp-band-lower');
+                        }
+                        if (upperPlotBandTemp) {
+                            yAxis.removePlotBand('temp-band-upper');
+                        }
+                        lowerPlotBandTemp = false;
+                        upperPlotBandTemp = false;
+                    })
+                    
+                }
+            }
+        },
+        series: [{
+            name: 'Temperature data',
+            data: (function() {
+                // generate some points to render before real samples arrive from feed
+                var data = [],
+                    time = (new Date()).getTime(),
+                    i;
+                // 100 samples, starting 99 ms ago up to present time when feed starts plotting
+                for (i = -99; i <= 0; i++) {
+                    data.push({
+                        x: time + (i * 1000),
+                        y: 0
+                    });
+                }
+                return data;
+            })()
+        }]
+    });
+
+    const humidityGraph = new Highcharts.Chart({
+        title: { text: 'Humidity' },
+        xAxis: {
+            type: 'datetime',
+            tickPixelInterval: 100
+        },
+        yAxis: {
+            title: { text: '%' },
+            tickInterval: 10,
+            min: 0,
+            max: 100
+        },
+        tooltip: {
+            formatter: function() {
+                return '<b>'+ this.series.name + '</b><br/>'
+                    + '[ ' + Highcharts.dateFormat('%Y-%m-%d %H:%M:%S', this.x)
+                    + ' , '
+                    + this.y + ' ]';
+            }
+        },
+        chart: {
+            type: 'line',
+            renderTo: 'humid_graph_container',
+            events: {
+                load: function() {
+                    var series = this.series[0];
+                    socket.on('updateData', function (sample) {
+                        // when a sample arrives we plot it
+                        series.addPoint([parseInt(sample.x), parseInt(sample.y.humid)], true, true);
+                    });
+
+                    // Add plot bands
+                    var yAxis = this.yAxis[0];
+                    var upperPlotBandHumid = false;
+                    var lowerPlotBandHumid = false;
+                    socket.on("upperPlotBandHumid", function(sample) {
+                        if (upperPlotBandHumid) {
+                            yAxis.removePlotBand('humid-band-upper');
+                        } 
+                        yAxis.addPlotBand({
+                            id: 'humid-band-upper', 
+                            from: sample,
+                            to: 100,
+                            color: '#FA8072'
+                            })
+                                
+                        upperPlotBandHumid = true;
+                    })
+                    socket.on("lowerPlotBandHumid", function(sample) {
+                        if (lowerPlotBandHumid) {
+                            yAxis.removePlotBand('humid-band-lower');
+                        }
+                        yAxis.addPlotBand({
+                            id: 'humid-band-lower', 
+                            from: sample,
+                            to: -10,
+                            color: '#FA8072'
+                            })
+                        lowerPlotBandHumid = true;
+                    })
+                    socket.on("resetCriticalHumid", function(_) {
+                        if (lowerPlotBandHumid) {
+                            yAxis.removePlotBand('humid-band-lower');
+                        }
+                        if (upperPlotBandHumid) {
+                            yAxis.removePlotBand('humid-band-upper');
+                        }
+                        lowerPlotBandHumid = false;
+                        upperPlotBandHumid = false;
+                    })
+
+                }
+            }
+        },
+        series: [{
+            name: 'Humidity data',
+            data: (function() {
+                // generate some points to render before real samples arrive from feed
+                var data = [],
+                    time = (new Date()).getTime(),
+                    i;
+                // 100 samples, starting 99 ms ago up to present time when feed starts plotting
+                for (i = -99; i <= 0; i++) {
+                    data.push({
+                        x: time + (i * 1000),
+                        y: 0
+                    });
+                }
+                return data;
+            })()
+        }]
+    });
+ 
+};
+
+// Emits to server to handle ON/OFF led button responses.
+function buttonclick(e) {
+    socket.emit("buttonPress", e.id);
+}
+
+
+// Handles the critical value setup upon clicking the Add or Reset button
+// First sends the provided values to the server
+// From the server, it can be sent to the event handler in the highcharts chart itself
+// (Could have provided it to the chart load function directly but would be less modular than now)
+// Additionally, prefills the notification form with the critical values
+function resetCritical(e) {
+    socket.emit('resetCritical', e.id);
+    if (e.id.slice('resetCritical'.length) == 'Temp') {
+        document.getElementById("lowerTemp").value = null;
+        document.getElementById("upperTemp").value = null;
+    } else {
+        document.getElementById("lowerHumid").value = null;
+        document.getElementById("upperHumid").value = null;
+    }
+    document.getElementById("subTempHigh").value = null;
+    document.getElementById("subTempLow").value = null;
+    document.getElementById("subHumidHigh").value = null;
+    document.getElementById("subHumidLow").value = null;
+}
+
+function submitCritical(e) {
+    if (e.id == "setCriticalTemp") {
+        var upper = document.getElementById('upperTemp').value;
+        var lower = document.getElementById('lowerTemp').value;
+        var values = {'id': 'Temp'};
+        if (upper != null && upper != "") {
+            values['upper'] = upper
+            document.getElementById("subTempHigh").value = upper;
+        } 
+        if (lower != null && lower != "") {
+            values['lower'] = lower
+            document.getElementById("subTempLow").value = lower;
+        }
+    } else if (e.id == 'setCriticalHumid') {
+        var upper = document.getElementById('upperHumid').value;
+        var lower = document.getElementById('lowerHumid').value;
+        var values = {'id': 'Humid'};
+        if (upper != null && upper != "") {
+            values['upper'] = upper;
+            document.getElementById("subHumidHigh").value = upper;
+        } 
+        if (lower != null && lower != "") {
+            values['lower'] = lower;
+            document.getElementById("subHumidLow").value = upper;
+        }
+    }
+    socket.emit('setCritical', values);
+}
+
+
+function updateJson(e) {
+    if (e.id == 'subscription') {
+        // Check email and whether all critical values are not empty
+        let email = document.getElementById("subEmail").value;
+        if (!validEmail(email)) {
+            alert("Invalid email input for subscription")
+            return false
+        }
+        let entries = returnEntries()
+        if (!entries) {
+            alert("Please enter critical values");
+            return false
+        }
+        let submission = {'email': email, 'sent': false, 'data': [['Temperature', parseFloat(entries[0]), parseFloat(entries[1])], ['Humidity', parseFloat(entries[2]), parseFloat(entries[3])]]};
+        socket.emit('subscribe', submission, (valid) => {
+            if (!valid) {
+                alert("This email address was already subscribed. Unsubscribe first if you want to change the critical values.");
+                return false
+            } 
+            alert(`${email} is added to the mailing list.`);
+        });
+
+    } else if (e.id == 'unsubscription') {
+        let email = document.getElementById("unsubEmail").value;
+        if (!validEmail(email)){
+            return false
+        }
+        socket.emit('unsubscribe', email, (valid) => {
+            if (!valid) {
+                alert("This emailadress was not subscribed before.");
+                return false
+            }
+            alert(`${email} is deleted from the mailing list.`);
+        });
+    }
+}
+
+// update the json-file directly. The listener in server.js will reload it in the subscription variable on changes.
+function validEmail(email) {
+    if (email == "" || email == null) {
+        return false;
+   }
+    if (!email.includes("@")) {
+        return false;
+   }   return true 
+}   
+
+function returnEntries() {
+    var tempHigh = document.getElementById("subTempHigh").value;
+    var tempLow = document.getElementById("subTempLow").value;
+    var humidHigh = document.getElementById("subHumidHigh").value;
+    var humidLow = document.getElementById("subHumidLow").value;
+    
+    var inputs = [tempLow, tempHigh, humidLow, humidHigh];
+    var entriesPresent = false;
+    var entries = [];
+    for (var i = 0; i < inputs.length; i++) {
+        if (inputs[i] != "" && inputs[i] != null) {
+            entries.push(inputs[i]);
+            entriesPresent = true;
+        } else {
+            entries.push(null)
+        }
+    }
+    if (!entriesPresent) {
+        return entriesPresent
+    }
+    return entries
+}
+
+
+// Activates the page that is pressed and hides the rest
+function openSubPage(event, tabName) {
+	var i, tabcontent, tablinks;
+	tabcontent = document.getElementsByClassName('tabcontent');
+	for (i = 0; i < tabcontent.length; i++) {
+		tabcontent[i].style.display = "none";
+	}
+	tablinks = document.getElementsByClassName("tablinks");
+	for (i = 0; i < tablinks.length; i++) {
+		tablinks[i].className = tablinks[i].className.replace(" active", "");
+	}
+	document.getElementById(tabName).style.display = "block";
+	event.currentTarget.className += ' active';
+}
+
+</script>
+
+  </head>
+  <body>
+	<h1>Exam project</h1>
+	<div class="tab">
+		<button class="tablinks" onclick="openSubPage(event,'Light')">Light (<span id="light"></span>)</button>
+		<button class="tablinks" onclick="openSubPage(event,'Temperature')">Temperature (<span id='temp'></span>)</button>
+		<button class="tablinks" onclick="openSubPage(event,'Humidity')">Humidity (<span id='humid'></span>)</button>
+		<button class="tablinks" onclick="openSubPage(event,'Subscribe')">Notify me!</button>
+	</div>
+    
+        <div id="Light" class="tabcontent">
+            <div class="col-md-10">
+                <div class="panel panel-default">
+                    <div class="panel-heading">
+                        <h3>Light intensity plot</h3>
+                    </div>
+                    <div class="panel-body">
+                        <div id="light_graph_container" style="min-width: 400px; height: 400px; margin: 0 auto"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="panel panel-default">
+                    <div class="panel-heading">
+                        <h3>LED</h3>
+                    </div>
+                    <div class="panel-body">
+                        <div id="slider" style="margin:0 auto; height: 350px;"></div>
+                    </div>
+                    <div class="panel-footer">
+                        <button id="ledon" style="float:left;" class="btn ledon center" type="button" onclick="buttonclick(this);">On</button>
+                        <button id="ledoff" style="float:right;" class="btn ledoff center" type="button" onclick="buttonclick(this);">Off</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="Temperature" class="tabcontent">
+            <div class="col-md-10">
+                <div class="panel panel-default">
+                    <div class="panel-heading">
+                        <h3>Temperature plot</h3>
+                    </div>
+                    <div class="panel-body">
+                        <div id="temp_graph_container" style="min-width: 400px; height: 400px; margin: 0 auto"></div>
+                    </div>
+                </div>
+            </div>
+			<div class="col-md-2">
+                <div class="panel panel-default">
+                    <div class="panel-heading">
+                        <h3>Set critical values</h3>
+                    </div>
+                    <div class="panel-body">
+                        <form id="tempForm">
+                            <label for="upperTemp">Upper critical temperature:
+                            <input class='tempFormData' type="number" id="upperTemp" placeholder="60">
+                            </label>
+                            <label for="lowerTemp">Lower critical temperature:
+                            <input class='tempFormData' type="number" id="lowerTemp" placeholder="-10">
+                            </label>
+                            <label>
+                            <button id="setCriticalTemp" style="float:left;" class="btn ledon center" type="button" onclick="submitCritical(this);">Add</button>
+                            <button id="resetCriticalTemp" style="float:right;" class="btn ledoff center" type="button" onclick="resetCritical(this)">Reset</button>
+                            </label>
+                        </form>
+                    </div>    
+                </div>
+            </div>
+        </div>
+
+        <div id="Humidity" class="tabcontent">
+            <div class="col-md-10">
+                <div class="panel panel-default">
+                    <div class="panel-heading">
+                        <h3>Humidity plot</h3>
+                    </div>
+                    <div class="panel-body">
+                        <div id="humid_graph_container" style="min-width: 400px; height: 400px; margin: 0 auto"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="panel panel-default">
+                    <div class="panel-heading">
+                        <h3>Set critical values</h3>
+                    </div>
+                    <div class="panel-body">
+                        <form id="humidForm">
+                            <label for="upperHumid">Upper critical temperature:
+                            <input class='humidFormData' type="number" id="upperHumid" placeholder="100">
+                            </label>
+                            <label for="lowerHumid">Lower critical temperature:
+                            <input class='humidFormData' type="number" id="lowerHumid" placeholder="0">
+                            </label>
+                            <label>
+                            <button id="setCriticalHumid" style="float:left;" class="btn ledon center" type="button" onclick="submitCritical(this);">Add</button>
+                            <button id="resetCriticalHumid" style="float:right;" class="btn ledoff center" type="button" onclick="resetCritical(this)">Reset</button>
+                            </label>
+                        </form>
+                    </div>    
+                </div>
+            </div>
+        </div>
+
+        <div id="Subscribe" class="tabcontent">
+            <h3>Subscribe here to receive emails when critical values are being reached</h3>
+        
+            <form id="subscriptionForm">
+                <div class="col-md-2">
+                    <h4>Temperature</h4>
+                    <label for="subTempHigh">Upper value:</label> 
+                    <input id="subTempHigh" type="number">
+                    <label for="subTempLow">Lower value:</label>
+                    <input id="subTempLow" type="number">
+                </div>
+                <div class="col-md-2">
+                    <h4>Humidity</h4>
+                    <label for="subHumidHigh">Upper value:</label> 
+                    <input id="subHumidHigh" type="number">
+                    <label for="subHumidLow">Lower value:</label>
+                    <input id="subHumidLow" type="number">
+                </div>
+                <div class="col-md-2">
+                    <h4>Message</h4>
+                    <textarea type="display:block;" id="emailTemplate" placeholder="Warning: Critical values have been reached!" rows="5"></textarea>
+                </div>
+
+                <div class="col-md-2">
+                    <h4>Subscribe</h4>
+                    <label for="subEmail">Email: <span id="email-error"></span></label>
+                    <input id="subEmail" type="text">
+                    <button id="subscription" class="btn ledon" style="position:relative; top:15px;" type="button" onclick="updateJson(this)">Subscribe</button>
+                </div>
+            
+                <div class="col-md-2">
+                    <h4>Unsubscribe</h4>
+                    <label for="unsubEmail">Email:</label>
+                    <input id="unsubEmail" type="text">
+                    <button id="unsubscription" class="btn ledoff" style="position:relative; top:15px;" type="button" onclick="updateJson(this)">Unsubscribe</button>
+                </div>
+            </form>
+                <p id="error-container"></p>
+            </div>
+        </div>
+       
+  </body>
+</html>
